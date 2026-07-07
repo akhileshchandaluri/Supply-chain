@@ -15,9 +15,15 @@ SUPPLIER_FEATURES = [
 def train_isolation_forest(supplier_df, save_path="models/isolation_forest.pkl"):
     X = supplier_df[SUPPLIER_FEATURES].fillna(0)
 
+    # NOTE: supplier_df is department-level and very small (~11 rows), so
+    # contamination/n_estimators tuning has limited statistical effect — with
+    # this sample size the model flags ~1 supplier regardless. We lower
+    # contamination to 0.03 (more precise, fewer false positives) and raise
+    # n_estimators to 300 for more stable anomaly scores across runs.
     model = IsolationForest(
-        n_estimators=100,
-        contamination=0.05,  # expect ~5% anomalies
+        n_estimators=300,
+        contamination=0.03,  # conservative: minimize false positives
+        max_samples="auto",
         random_state=42,
     )
     model.fit(X)

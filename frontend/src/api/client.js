@@ -29,4 +29,8 @@ export const getNodes = () => api.get("/nodes");
 
 export const simulateOrder = () => api.get("/simulate/order");
 
+export const runPipeline = (payload) => api.post("/pipeline/run", payload);
+
+export const chatRL = (payload) => api.post("/rl/chat", payload);
+
 export default api;

@@ -16,7 +16,7 @@ def load_data(path="data/DataCoSupplyChainDataset.csv"):
     if order_date_col is None:
         raise ValueError(f"Cannot find order date column. Columns: {list(df.columns)}")
 
-    df["order_date"] = pd.to_datetime(df[order_date_col], format="%m/%d/%Y %H:%M", errors="coerce")
+    df["order_date"] = pd.to_datetime(df[order_date_col], format="%m/%d/%Y %H:%M", errors="coerce").dt.normalize()
     if shipping_date_col:
         df["shipping_date"] = pd.to_datetime(df[shipping_date_col], format="%m/%d/%Y %H:%M", errors="coerce")
 
@@ -28,6 +28,8 @@ def load_data(path="data/DataCoSupplyChainDataset.csv"):
     # Rename for convenience — handle both dataset variants
     rename_map = {
         "Order Item Quantity":            "quantity",
+        "Product Card Id":                "product_id",
+        "Product Name":                   "product_name",
         "Late_delivery_risk":             "late_risk",
         "Days for shipping (real)":       "actual_days",
         "Days for shipment (scheduled)":  "scheduled_days",

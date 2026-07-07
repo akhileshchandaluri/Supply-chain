@@ -93,10 +93,14 @@ export default function DemandForecast() {
 
   return (
     <motion.div initial={{ opacity:0, y:20 }} animate={{ opacity:1, y:0 }} transition={{ type:"spring", stiffness:260, damping:20 }}>
-      <div className="page-header">
-        <div className="page-badge"><TrendingUp size={10}/> XGBoost Regression</div>
-        <h1 className="page-title">Demand Forecasting</h1>
-        <p className="page-subtitle">7-day ahead demand predictions using gradient boosted trees with lag features and rolling statistics.</p>
+      <div className="hero-copy">
+        <div className="hero-eyebrow"><TrendingUp size={12} /> Predictive Models</div>
+        <h1 className="hero-title">
+          Demand Forecast {data?.department && data.department !== "Global" ? `- ${data.department}` : ""}
+        </h1>
+        <p className="hero-text">
+          7-day ahead demand predictions using gradient boosted trees with lag features and rolling statistics.
+        </p>
       </div>
 
       <div className="metrics-grid section-gap">

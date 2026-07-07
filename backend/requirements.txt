@@ -1,8 +1,11 @@
 fastapi>=0.115.2
 uvicorn[standard]>=0.35.0
 pandas>=2.1.0
-numpy>=1.24.0
-scikit-learn>=1.3.0
-xgboost>=1.7.6
+numpy<2.0.0
+scikit-learn==1.3.0
+xgboost==1.7.6
 joblib>=1.3.2
 python-multipart>=0.0.18
+ortools==9.11.4210  # pinned: 9.12+ requires numpy>=2, which breaks scikit-learn 1.3.0
+requests>=2.31.0    # Groq API calls in xai_explainer.py
+python-dotenv>=1.0.0  # loads backend/.env (GROQ_API_KEY) in xai_explainer.py

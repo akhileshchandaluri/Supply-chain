@@ -1,6 +1,131 @@
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence, useSpring, useTransform } from "framer-motion";
-import { BrainCircuit } from "lucide-react";
+import { BrainCircuit, Scale, Sigma } from "lucide-react";
+import RLInsightsPanel from "../components/RLInsightsPanel";
+import RLChatPanel from "../components/RLChatPanel";
+
+// Human-readable labels for the reward-function components (mirror rl_agent.explain_reward).
+const REWARD_LABELS = {
+  holding_cost: "Holding cost",
+  demand_fulfillment: "Demand fulfilled",
+  stockout_penalty: "Stockout penalty",
+  overcapacity_penalty: "Overcapacity penalty",
+  action_cost: "Action cost",
+  anomaly_mitigation: "Anomaly mitigation",
+};
+
+// "Action chosen because X (long-term value) beat the next-best alternative Y."
+function buildJustification(rl) {
+  if (!rl?.q_values) return null;
+  const sorted = Object.entries(rl.q_values).sort(([, a], [, b]) => b - a);
+  const [chosenName, chosenQ] = sorted[0];
+  const runnerUp = sorted[1];
+  const rb = rl.reward_breakdown?.components || {};
+  const positives = Object.entries(rb).filter(([, v]) => v > 0).sort(([, a], [, b]) => b - a);
+  const costs = Object.entries(rb).filter(([, v]) => v < 0).sort(([, a], [, b]) => a - b);
+  return {
+    chosenName,
+    chosenQ,
+    runnerUpName: runnerUp?.[0],
+    runnerUpQ: runnerUp?.[1],
+    topReward: positives[0],
+    topCost: costs[0],
+    total: rl.reward_breakdown?.total,
+  };
+}
+
+function RewardBreakdown({ rl }) {
+  const rb = rl?.reward_breakdown;
+  if (!rb?.components) return null;
+  const rows = Object.entries(rb.components);
+  return (
+    <div className="card">
+      <p className="card-label" style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
+        <Sigma size={12} /> Reward / Points Breakdown
+      </p>
+      <p className="card-subtitle" style={{ marginBottom: 14 }}>
+        One-step reward decomposition for the chosen action (from the trained reward function).
+      </p>
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {rows.map(([key, val]) => {
+          const positive = val >= 0;
+          return (
+            <div
+              key={key}
+              style={{
+                display: "flex", justifyContent: "space-between", alignItems: "center",
+                padding: "10px 14px", borderRadius: "var(--r-sm)",
+                background: "var(--bg-card-hover)", border: "1px solid var(--border)",
+              }}
+            >
+              <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text-secondary)" }}>
+                {REWARD_LABELS[key] || key}
+              </span>
+              <span
+                style={{
+                  fontFamily: "var(--font-mono)", fontSize: 14, fontWeight: 800,
+                  color: positive ? "var(--emerald-500)" : "var(--rose-500)",
+                }}
+              >
+                {positive ? "+" : ""}{val}
+              </span>
+            </div>
+          );
+        })}
+        <div
+          style={{
+            display: "flex", justifyContent: "space-between", alignItems: "center",
+            padding: "12px 14px", borderRadius: "var(--r-sm)", marginTop: 4,
+            background: "linear-gradient(135deg, rgba(37,99,235,0.08), rgba(124,58,237,0.05))",
+            border: "1px solid var(--border-bright)",
+          }}
+        >
+          <span style={{ fontSize: 12, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--text-muted)" }}>
+            Total Step Reward
+          </span>
+          <span style={{ fontFamily: "var(--font-mono)", fontSize: 16, fontWeight: 800, color: "var(--blue-600)" }}>
+            {rb.total}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function JustificationCard({ rl }) {
+  const j = buildJustification(rl);
+  if (!j) return null;
+  const fmt = (n) => (typeof n === "number" ? n.toLocaleString(undefined, { maximumFractionDigits: 1 }) : n);
+  return (
+    <div className="card" style={{ borderLeft: "4px solid var(--violet-500)" }}>
+      <p className="card-label" style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
+        <Scale size={12} /> Decision Justification
+      </p>
+      <p style={{ fontSize: 14, lineHeight: 1.7, color: "var(--text-secondary)" }}>
+        <strong style={{ color: "var(--text-primary)" }}>{j.chosenName.replace(/_/g, " ")}</strong> was chosen
+        because its expected long-term value{" "}
+        <strong style={{ fontFamily: "var(--font-mono)", color: "var(--violet-500)" }}>Q = {fmt(j.chosenQ)}</strong>
+        {j.runnerUpName && (
+          <> exceeded the next-best option{" "}
+            <strong style={{ color: "var(--text-primary)" }}>{j.runnerUpName.replace(/_/g, " ")}</strong>{" "}
+            (<span style={{ fontFamily: "var(--font-mono)" }}>Q = {fmt(j.runnerUpQ)}</span>)</>
+        )}
+        .{" "}
+        {j.topReward && (
+          <>Immediate reward is driven mainly by{" "}
+            <strong style={{ color: "var(--emerald-500)" }}>{REWARD_LABELS[j.topReward[0]] || j.topReward[0]} (+{j.topReward[1]})</strong>
+            {j.topCost && (
+              <>, outweighing the{" "}
+                <strong style={{ color: "var(--rose-500)" }}>{REWARD_LABELS[j.topCost[0]] || j.topCost[0]} ({j.topCost[1]})</strong></>
+            )}
+            , for a net step reward of{" "}
+            <strong style={{ fontFamily: "var(--font-mono)", color: "var(--blue-600)" }}>{fmt(j.total)}</strong>.
+          </>
+        )}
+      </p>
+    </div>
+  );
+}
 
 // ─── Action configuration (mirrors rl_agent.py ACTIONS dict) ──────────────────
 const ACTION_CFG = {
@@ -280,12 +405,12 @@ export default function RLAgent({ liveOrder }) {
       <div className="page-header">
         <div className="page-badge"><BrainCircuit size={10} /> Q-Learning · Tabular RL</div>
         <h1 className="page-title">RL Inventory Agent</h1>
-        <p className="page-subtitle">Automated decision-making using Q-Learning based on the latest simulated order.</p>
+        <p className="page-subtitle">Interactive expert system: the Q-Learning decision, its mathematical justification, reward breakdown, and an AI analyst you can question.</p>
       </div>
 
       {isAlert && <WarningBanner action={result.action} />}
 
-      <div style={{ maxWidth: 800, margin: "0 auto", display:"flex", flexDirection:"column", gap:24 }}>
+      <div style={{ maxWidth: 860, margin: "0 auto", display:"flex", flexDirection:"column", gap:24 }}>
         <div className="card">
           <p className="card-label" style={{ marginBottom:10 }}>Agent Decision</p>
           <HeroCard result={result} />
@@ -319,6 +444,18 @@ export default function RLAgent({ liveOrder }) {
             </motion.div>
           )}
         </AnimatePresence>
+
+        {/* Mathematical justification: why this action beat the alternatives */}
+        {result && <JustificationCard rl={result} />}
+
+        {/* Itemized reward / points breakdown */}
+        {result && <RewardBreakdown rl={result} />}
+
+        {/* Glass-box RL internals (Q-value spread, Bellman badge, confidence) */}
+        <RLInsightsPanel rlAction={result} />
+
+        {/* Interactive, context-aware LLM analyst (replaces the static audit log) */}
+        <RLChatPanel liveOrder={liveOrder} />
       </div>
     </motion.div>
   );

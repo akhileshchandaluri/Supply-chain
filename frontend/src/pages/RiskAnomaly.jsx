@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   ScatterChart, Scatter, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -161,7 +161,7 @@ export default function RiskAnomaly({ liveOrder }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  const loadAnomalies = async () => {
+  const loadAnomalies = useCallback(async () => {
     setLoading(true);
     setError("");
     try {
@@ -169,9 +169,10 @@ export default function RiskAnomaly({ liveOrder }) {
       setAnomalyData(res.data);
     } catch (e) {
       setError(e.response?.data?.detail || "Could not load anomaly data. Models may still be training.");
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
-  };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -191,11 +192,28 @@ export default function RiskAnomaly({ liveOrder }) {
 
   // Re-fetch anomalies when a new live order comes in (supplier context may change)
   useEffect(() => {
-    if (liveOrder) loadAnomalies();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (!liveOrder?.order_details?.id) return undefined;
+
+    let cancelled = false;
+    const refresh = async () => {
+      try {
+        const res = await detectAnomalies();
+        if (!cancelled) {
+          setAnomalyData(res.data);
+          setError("");
+        }
+      } catch (e) {
+        if (!cancelled) {
+          setError(e.response?.data?.detail || "Could not refresh anomaly data.");
+        }
+      }
+    };
+
+    refresh();
+    return () => { cancelled = true; };
   }, [liveOrder?.order_details?.id]);
 
-  const suppliers = anomalyData?.suppliers || [];
+  const suppliers = useMemo(() => anomalyData?.suppliers || [], [anomalyData?.suppliers]);
   const totalSuppliers = anomalyData?.total || suppliers.length;
   const anomalyCount = anomalyData?.anomaly_count || 0;
   const anomalyRate = anomalyData?.anomaly_rate || 0;

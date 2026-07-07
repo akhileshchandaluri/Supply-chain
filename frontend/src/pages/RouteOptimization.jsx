@@ -57,8 +57,9 @@ const TYPE_STYLE = {
 };
 
 const ALGO_STYLE = {
-  astar:    { stroke: "#E11D48", glow: "#E11D48", glowSpread: "rgba(225,29,72,0.15)",  label: "A* Emergency"  },
-  dijkstra: { stroke: "#7C3AED", glow: "#7C3AED", glowSpread: "rgba(124,58,237,0.15)", label: "Dijkstra Std." },
+  astar:    { stroke: "#E11D48", glow: "#E11D48", glowSpread: "rgba(225,29,72,0.15)",  label: "A* Route"  },
+  // Retained as a defensive fallback style; the pipeline no longer emits Dijkstra.
+  dijkstra: { stroke: "#7C3AED", glow: "#7C3AED", glowSpread: "rgba(124,58,237,0.15)", label: "A* Route" },
 };
 
 function AnimatedEdge({ x1, y1, x2, y2, algo, delay, id }) {
@@ -294,7 +295,7 @@ function PathBreadcrumb({ result, algo }) {
     >
       <p style={{ fontSize: 11, fontWeight: 800, color: st.stroke,
         textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 12 }}>
-        {algo === "astar" ? "🚨 A* Emergency Path" : "📦 Dijkstra Standard Path"}
+        {"🚀 A* Optimal Path"}
         <span style={{ float: "right", fontFamily: "var(--font-mono)", fontSize: 13, color: "var(--text-primary)" }}>
           Cost: {result.total_cost} - {result.nodes_explored} nodes explored
         </span>
@@ -334,9 +335,8 @@ function PathBreadcrumb({ result, algo }) {
 export default function RouteOptimization({ liveOrder }) {
   const routeResult = liveOrder?.route;
   
-  let activeAlgo = null;
-  if (routeResult?.algorithm?.toLowerCase().includes("a*")) activeAlgo = "astar";
-  else if (routeResult?.algorithm?.toLowerCase().includes("dijkstra")) activeAlgo = "dijkstra";
+  // Pipeline standardized on A*; default to it whenever a route is present.
+  const activeAlgo = routeResult?.path?.length ? "astar" : null;
 
   const startNode = routeResult?.path ? routeResult.path[0] : null;
   const goalNode = routeResult?.path ? routeResult.path[routeResult.path.length - 1] : null;
@@ -347,7 +347,7 @@ export default function RouteOptimization({ liveOrder }) {
         <div className="page-badge"><Network size={10} /> Graph Search Algorithms</div>
         <h1 className="page-title">Route Optimizer</h1>
         <p className="page-subtitle">
-          Automated routing output for the current live order using A* (Emergency) or Dijkstra (Standard).
+          Automated routing output for the current live order using A* heuristic shortest-path search.
         </p>
       </div>
 
@@ -379,8 +379,7 @@ export default function RouteOptimization({ liveOrder }) {
           <div style={{ display: "flex", gap: 24, marginTop: 16, fontSize: 12, color: "var(--text-muted)", flexWrap: "wrap", fontWeight: 500 }}>
             <span><span style={{ color: "#F59E0B", fontWeight: 700 }}>●</span> Start</span>
             <span><span style={{ color: "#10B981", fontWeight: 700 }}>●</span> Goal</span>
-            <span><span style={{ color: "#E11D48", fontWeight: 700 }}>─</span> A* Emergency</span>
-            <span><span style={{ color: "#7C3AED", fontWeight: 700 }}>─</span> Dijkstra Std</span>
+            <span><span style={{ color: "#E11D48", fontWeight: 700 }}>─</span> A* Route</span>
           </div>
         </div>
 

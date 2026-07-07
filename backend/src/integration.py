@@ -19,7 +19,8 @@ from rf_risk import predict_risk
 from isolation_forest import detect_anomaly
 from rl_agent import get_action
 from astar_routing import astar
-from dijkstra_routing import dijkstra
+from optimization_layer import optimize_warehouse_allocation
+from xai_explainer import generate_pipeline_explanation
 
 
 # Risk label → numeric score used as RL input
@@ -74,17 +75,22 @@ def run_pipeline(
     order_value = float(risk_features.get("order_value", 0.0))
     avg_value_per_unit = float(current_state.get("avg_order_value_per_unit", 100.0))
 
-    # Per-order scaling based on order characteristics
-    # Higher value orders suggest higher regional demand
-    value_ratio = order_value / max(avg_value_per_unit * max(order_qty, 1.0), 1.0)
+    # Per-order scaling based on order characteristics.
+    # Higher per-unit value suggests higher regional demand.
+    value_ratio = order_value / max(avg_value_per_unit, 1.0)
     value_scale = min(1.8, max(0.5, value_ratio))
 
     # Urgency adds pressure — rush orders hint at demand spikes
     days_to_del = current_state.get("days_to_delivery", 5)
     urgency_scale = 1.0 + max(0, (3.0 - days_to_del)) * 0.12
 
+    # Order SIZE drives demand: a larger Target Quantity implies a bigger demand
+    # spike, which is what pushes the RL agent toward larger / emergency reorders.
+    # (Real dataset orders have qty ~1-5, so this barely affects the simulate path.)
+    quantity_scale = min(8.0, 1.0 + order_qty / 400.0)
+
     # Combine into a per-order multiplier (centered around 1.0)
-    order_multiplier = value_scale * urgency_scale
+    order_multiplier = value_scale * urgency_scale * quantity_scale
 
     # Add order-specific noise using the order value as seed for reproducibility
     # This ensures different orders get different forecasts
@@ -123,33 +129,65 @@ def run_pipeline(
         days    = current_state.get("days_to_delivery", 5),
     )
 
-    # ── Step 5: Routing — A* if emergency, Dijkstra otherwise ────────────────
+    # ── Step 4.5: Optimization Layer — physical warehouse allocation ──────────
+    # Bridge the RL macro-decision to a min-cost inventory allocation (GLOP LP).
+    # Wrapped so a solver/import failure degrades gracefully without changing the
+    # response shape ({status, total_optimized_cost, allocations}).
+    try:
+        optimization = optimize_warehouse_allocation(
+            demand_forecast=forecast,
+            action_context=rl_result["action"],
+        )
+    except Exception as e:
+        print(f"[Pipeline] Optimization step failed: {e}")
+        optimization = {
+            "status": "ERROR",
+            "total_optimized_cost": 0.0,
+            "allocations": [],
+        }
+
+    # ── Step 5: Routing — always A* (heuristic shortest-path) ────────────────
     start = int(current_state.get("start_node", 0))
     goal  = int(current_state.get("goal_node",  6))
 
-    # Emergency conditions: RL says so, OR risk is HIGH, OR anomaly detected
+    # Emergency conditions: RL says so, OR risk is HIGH, OR anomaly detected.
+    # (Kept for the route's context label/trigger — the algorithm is A* either way.)
     is_emergency = (
         rl_result["action"] == "EMERGENCY_REORDER"
         or risk_score > 0.8
         or anomaly_flag == 1
     )
 
-    if is_emergency:
+    # Routing is wrapped so a graph/algorithm failure cannot crash the pipeline;
+    # the fallback keeps the same route dict shape the frontend + summary expect.
+    try:
         route = astar(start, goal)
-        route["type"] = "EMERGENCY (A*)"
-        if rl_result["action"] == "EMERGENCY_REORDER":
-            route["trigger"] = "RL agent: EMERGENCY_REORDER"
-        elif anomaly_flag:
-            route["trigger"] = "Isolation Forest: supplier anomaly detected"
+        if is_emergency:
+            route["type"] = "EMERGENCY (A*)"
+            if rl_result["action"] == "EMERGENCY_REORDER":
+                route["trigger"] = "RL agent: EMERGENCY_REORDER"
+            elif anomaly_flag:
+                route["trigger"] = "Isolation Forest: supplier anomaly detected"
+            else:
+                route["trigger"] = f"Random Forest: risk score {risk_score} > 0.8"
         else:
-            route["trigger"] = f"Random Forest: risk score {risk_score} > 0.8"
-    else:
-        route = dijkstra(start, goal)
-        route["type"]    = "STANDARD (Dijkstra)"
-        route["trigger"] = "Normal operations — cost-optimal routing"
+            route["type"]    = "STANDARD (A*)"
+            route["trigger"] = "Normal operations - A* shortest-path routing"
+    except Exception as e:
+        print(f"[Pipeline] Routing step failed: {e}")
+        route = {
+            "path": [],
+            "path_names": [],
+            "total_cost": 0,
+            "nodes_explored": 0,
+            "algorithm": "A*",
+            "type": "EMERGENCY (A*)" if is_emergency else "STANDARD (A*)",
+            "trigger": "Routing unavailable — using fallback",
+            "error": str(e),
+        }
 
     # ── Assemble unified response ─────────────────────────────────────────────
-    return {
+    pipeline_data = {
         # Demand
         "demand_forecast_7d": [round(v, 2) for v in forecast],
         "demand_7d_avg":      round(demand_7d, 2),
@@ -172,6 +210,9 @@ def run_pipeline(
         # RL
         "rl_action": rl_result,
 
+        # Optimization (Layer 4.5) — min-cost warehouse allocation
+        "optimization": optimization,
+
         # Routing
         "route":        route,
         "is_emergency": is_emergency,
@@ -185,3 +226,9 @@ def run_pipeline(
             "step_5_route":   f"{route['type']}: {' → '.join(route.get('path_names', []))}",
         },
     }
+
+    # ── Layer 6: XAI — plain-language executive audit of the full decision ─────
+    # Best-effort: returns "Audit generation unavailable" on missing key/timeout.
+    pipeline_data["ai_explanation"] = generate_pipeline_explanation(pipeline_data)
+
+    return pipeline_data

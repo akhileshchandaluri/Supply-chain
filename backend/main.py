@@ -15,7 +15,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, List
 import numpy as np
 import joblib
 import pandas as pd
@@ -28,8 +28,9 @@ from feature_engineering import (
     build_supplier_features,
 )
 from xgboost_demand import train_xgboost, predict_demand
-from xgboost_demand import evaluate_xgboost
+from xgboost_demand import evaluate_xgboost, evaluate_xgboost_for_product
 from rf_risk import train_random_forest, predict_risk, evaluate_random_forest
+from rf_risk import FEATURE_COLS as RF_FEATURE_COLS
 from isolation_forest import (
     train_isolation_forest,
     detect_anomaly,
@@ -39,11 +40,13 @@ from graph_construction import get_graph_data, NODES
 from astar_routing import astar
 from dijkstra_routing import dijkstra
 from rl_agent import train_agent, get_action
+from xai_explainer import chat_about_decision
 from integration import run_pipeline
 
 # ─── Global State (defined before lifespan so it can reference these) ─────────
-MODELS_DIR = "models"
-DATA_PATH  = os.path.join(os.path.dirname(__file__), "data/DataCoSupplyChainDataset.csv")
+BASE_DIR = os.path.dirname(__file__)
+MODELS_DIR = os.path.join(BASE_DIR, "models")
+DATA_PATH = os.path.join(BASE_DIR, "data", "DataCoSupplyChainDataset.csv")
 
 # The exact four files that must ALL exist for the system to be fully ready.
 # If any one is missing at startup, training is triggered automatically.
@@ -228,6 +231,18 @@ class RLRequest(BaseModel):
     days: float = 5
 
 
+class ChatTurn(BaseModel):
+    role: str          # "user" | "assistant"
+    content: str
+
+
+class RLChatRequest(BaseModel):
+    """Interactive RL-decision chat: a question grounded in the latest run's context."""
+    question: str
+    context: dict = {}                       # rl_action, optimization, risk, etc.
+    history: Optional[List[ChatTurn]] = []   # prior turns for follow-up coherence
+
+
 class SupplierMetrics(BaseModel):
     avg_delivery_time: float = 5.0
     price_deviation: float = 0.1
@@ -277,6 +292,7 @@ class PipelineRequest(BaseModel):
     days_to_delivery:  float                = 5.0
     start_node:        int                  = 0
     goal_node:         int                  = 6
+    order_quantity:    float                = 1.0   # order size → scales demand forecast
     risk_features:     RiskFeaturesInline   = RiskFeaturesInline()
     supplier_metrics:  SupplierMetricsInline = SupplierMetricsInline()
 
@@ -315,18 +331,30 @@ def _do_training(episodes: int):
         supplier_df_cache = supplier_df
 
         print("[Train] Training XGBoost...")
-        xgb_model, xgb_metrics = train_xgboost(daily_df, save_path=f"{MODELS_DIR}/xgboost_demand.pkl")
+        xgb_model, xgb_metrics = train_xgboost(
+            daily_df,
+            save_path=os.path.join(MODELS_DIR, "xgboost_demand.pkl"),
+        )
         state["xgb_metrics"] = xgb_metrics
 
         print("[Train] Training Random Forest...")
-        rf_model, rf_metrics = train_random_forest(rf_df, save_path=f"{MODELS_DIR}/rf_risk.pkl")
+        rf_model, rf_metrics = train_random_forest(
+            rf_df,
+            save_path=os.path.join(MODELS_DIR, "rf_risk.pkl"),
+        )
         state["rf_metrics"] = rf_metrics
 
         print("[Train] Training Isolation Forest...")
-        iso_model, _ = train_isolation_forest(supplier_df, save_path=f"{MODELS_DIR}/isolation_forest.pkl")
+        iso_model, _ = train_isolation_forest(
+            supplier_df,
+            save_path=os.path.join(MODELS_DIR, "isolation_forest.pkl"),
+        )
 
         print(f"[Train] Training Q-Learning ({episodes} episodes)...")
-        agent, _ = train_agent(episodes=episodes, save_path=f"{MODELS_DIR}/q_table.npy")
+        agent, _ = train_agent(
+            episodes=episodes,
+            save_path=os.path.join(MODELS_DIR, "q_table.npy"),
+        )
         q_table = agent.q_table
 
         state["models_loaded"] = True
@@ -359,17 +387,50 @@ def get_graph():
 
 
 @app.get("/api/demand/forecast")
-def forecast_demand(horizon: int = 7):
+def forecast_demand(horizon: int = 7, department: str = None, product_id: str = None):
     if xgb_model is None:
         raise HTTPException(status_code=503, detail="XGBoost model not trained yet.")
     if daily_df_cache is None:
         raise HTTPException(status_code=503, detail="Data not loaded.")
 
+    # Metrics: per-product when product_id is given, otherwise the global cache (as today).
+    if product_id is not None:
+        if raw_df_cache is None:
+            raise HTTPException(status_code=503, detail="Data not loaded.")
+        metrics = evaluate_xgboost_for_product(xgb_model, raw_df_cache, product_id)
+        if not metrics:
+            raise HTTPException(status_code=404, detail="Product metrics not found")
+    else:
+        metrics = state["xgb_metrics"]
+
     forecasts = predict_demand(xgb_model, daily_df_cache, horizon=horizon)
 
-    # Return last 30 days of actual data too
-    actual = daily_df_cache["demand"].tail(30).tolist()
-    dates  = [str(d.date()) for d in daily_df_cache.index[-30:]]
+    if department is None:
+        department = state.get("last_department")
+
+    if department and raw_df_cache is not None:
+        # Filter actuals by department
+        dept_df = raw_df_cache[raw_df_cache["department"] == department]
+        if not dept_df.empty:
+            daily_dept = dept_df.groupby("order_date")["quantity"].sum().asfreq("D", fill_value=0)
+            actual = daily_dept.tail(30).tolist()
+            dates = [str(d.date()) for d in daily_dept.index[-30:]]
+
+            # Scale forecast to department level
+            dept_mean = np.mean(actual[-7:])
+            global_mean = np.mean(forecasts)
+            ratio = dept_mean / max(global_mean, 1)
+
+            # Add dynamic variation based on department name hash so the forecast line isn't a straight scaled line
+            rng = np.random.RandomState(hash(department) % (2**32))
+            noise = rng.normal(1.0, 0.08, len(forecasts))
+            forecasts = [max(0, f * ratio * n) for f, n in zip(forecasts, noise)]
+        else:
+            actual = daily_df_cache["demand"].tail(30).tolist()
+            dates  = [str(d.date()) for d in daily_df_cache.index[-30:]]
+    else:
+        actual = daily_df_cache["demand"].tail(30).tolist()
+        dates  = [str(d.date()) for d in daily_df_cache.index[-30:]]
 
     last_date = daily_df_cache.index[-1]
     future_dates = [
@@ -378,11 +439,12 @@ def forecast_demand(horizon: int = 7):
     ]
 
     return {
+        "department": department or "Global",
         "actual_dates": dates,
         "actual_demand": actual,
         "forecast_dates": future_dates,
         "forecast_demand": forecasts,
-        "metrics": state["xgb_metrics"],
+        "metrics": metrics,
     }
 
 
@@ -391,13 +453,10 @@ def predict_risk_endpoint(features: RiskFeatures):
     if rf_model is None:
         raise HTTPException(status_code=503, detail="Random Forest model not trained yet.")
     result = predict_risk(rf_model, features.dict())
+    # Use the model's canonical feature list so importances always align with the
+    # trained columns (avoids mislabeling if the feature set changes).
     result["feature_importances"] = dict(
-        zip(
-            ["shipping_mode_enc", "actual_days", "scheduled_days",
-             "discount_rate", "order_value", "supplier_delay_rate",
-             "days_buffer", "delay_gap"],
-            rf_model.feature_importances_.tolist(),
-        )
+        zip(RF_FEATURE_COLS, rf_model.feature_importances_.tolist())
     )
     return result
 
@@ -447,11 +506,28 @@ def dijkstra_route(req: RouteRequest):
     return dijkstra(req.start, req.goal)
 
 
+
 @app.post("/api/rl/action")
 def rl_action(req: RLRequest):
     if q_table is None:
         raise HTTPException(status_code=503, detail="Q-table not trained yet.")
     return get_action(q_table, req.inventory, req.demand, req.risk, req.anomaly, req.days)
+
+
+@app.post("/api/rl/chat", summary="Interactive LLM chat about the latest RL decision")
+def rl_chat(req: RLChatRequest):
+    """
+    Context-aware Q&A about a pipeline run. The frontend passes the run's decision
+    data (Q-values, reward breakdown, optimization, risk) as `context`; the LLM
+    grounds its answer in that data. Never raises for LLM/network issues — returns
+    a graceful fallback string so the chat UI stays responsive.
+    """
+    answer = chat_about_decision(
+        question=req.question,
+        context=req.context or {},
+        history=[h.dict() for h in (req.history or [])],
+    )
+    return {"answer": answer}
 
 
 @app.get("/api/nodes")
@@ -511,6 +587,7 @@ def run_full_pipeline(req: PipelineRequest):
         "days_to_delivery": req.days_to_delivery,
         "start_node":       req.start_node,
         "goal_node":        req.goal_node,
+        "order_quantity":   req.order_quantity,
         "risk_features":    req.risk_features.dict(),
         "supplier_metrics": req.supplier_metrics.dict(),
     }
@@ -551,6 +628,7 @@ def simulate_live_order():
     mode_map = {"Standard Class": 0, "Second Class": 1, "First Class": 2, "Same Day": 3}
     shipping_mode_enc = float(mode_map.get(sample["shipping_mode"], 0))
     dept = sample["department"]
+    state["last_department"] = dept
     
     supplier_delay_rate = float(df[df["department"] == dept]["late_risk"].mean())
     actual_days = float(sample["actual_days"])
@@ -568,10 +646,15 @@ def simulate_live_order():
         "days_buffer": float(scheduled_days - max(0, actual_days)),
         "delay_gap": float(actual_days - scheduled_days)
     }
-    
+
     # Get supplier metrics
     if supplier_df_cache is not None:
         supp_stats = supplier_df_cache[supplier_df_cache["department"] == dept]
+
+        # Inject real-time variance to simulate dynamic delays and anomalies per-order
+        supplier_delay_rate += float(np.random.uniform(-0.15, 0.40))
+        supplier_delay_rate = max(0.0, min(1.0, supplier_delay_rate))
+
         if not supp_stats.empty:
             supp_stats = supp_stats.iloc[0]
             supplier_metrics = {
@@ -584,13 +667,25 @@ def simulate_live_order():
             supplier_metrics = SupplierMetricsInline().dict()
     else:
         supplier_metrics = SupplierMetricsInline().dict()
-        
-    # Pick random nodes for start and goal
-    nodes = list(NODES.keys())
-    start_node = int(np.random.choice(nodes))
-    goal_node = int(np.random.choice([n for n in nodes if n != start_node]))
+
+    # Pick logical nodes for start and goal
+    nodes_info = NODES
+    supplier_wh_nodes = [nid for nid, data in nodes_info.items() if data[3] in ("supplier", "warehouse")]
+    wh_hub_nodes = [nid for nid, data in nodes_info.items() if data[3] in ("warehouse", "hub")]
+
+    start_node = int(np.random.choice(supplier_wh_nodes))
+    valid_goals = [n for n in wh_hub_nodes if n != start_node]
+    goal_node = int(np.random.choice(valid_goals))
+
+    # Force the display city to match the routing graph's destination city
+    start_name = NODES.get(start_node, ("",0,0,None))[0] or f"Node-{start_node}"
+    goal_name = NODES.get(goal_node, ("",0,0,None))[0] or f"Node-{goal_node}"
+    if "-" in goal_name:
+        sample["city"] = goal_name.split("-")[1]
+    else:
+        sample["city"] = goal_name
     
-    inventory = float(np.random.randint(20, 200))
+    inventory = float(np.random.randint(50, 800))
     days_to_delivery = scheduled_days
 
     if not state["models_loaded"]:

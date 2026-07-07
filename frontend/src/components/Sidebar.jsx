@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import {
   LayoutDashboard, TrendingUp, AlertTriangle,
-  ScanSearch, Network, BrainCircuit, Zap, History,
+  Network, BrainCircuit, Zap, History,
 } from "lucide-react";
 import { getStatus } from "../api/client";
 

@@ -96,7 +96,7 @@ export default function App() {
         <main className="main-content">
           <AnimatePresence mode="wait">
             <motion.div className="page-shell" key={activePage} {...PAGE_TRANSITION}>
-              <PageComponent onNavigate={setActivePage} liveOrder={liveOrder} history={history} setHistory={setHistory} />
+              <PageComponent onNavigate={setActivePage} liveOrder={liveOrder} setLiveOrder={setLiveOrder} history={history} setHistory={setHistory} />
             </motion.div>
           </AnimatePresence>
         </main>

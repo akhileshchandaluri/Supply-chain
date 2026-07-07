@@ -13,15 +13,17 @@ from sklearn.metrics import (
 import joblib
 import os
 
+# NOTE ON FEATURE SELECTION (label-leakage fix):
+# risk_class is DERIVED from delay_gap = actual_days - scheduled_days (see
+# feature_engineering.build_risk_features). Feeding delay_gap / actual_days /
+# scheduled_days / days_buffer back in as features let the model re-derive the
+# label arithmetically, producing a fake 1.000 F1. Those four columns are
+# excluded here so the reported metrics reflect genuine predictive skill.
 FEATURE_COLS = [
     "shipping_mode_enc",
-    "actual_days",
-    "scheduled_days",
     "discount_rate",
     "order_value",
     "supplier_delay_rate",
-    "days_buffer",
-    "delay_gap",
 ]
 
 
@@ -34,11 +36,11 @@ def train_random_forest(rf_df, save_path="models/rf_risk.pkl"):
     )
 
     model = RandomForestClassifier(
-        n_estimators=200,
-        max_depth=15,
+        n_estimators=400,
+        max_depth=20,
         min_samples_split=5,
-        min_samples_leaf=2,
-        class_weight="balanced",
+        min_samples_leaf=3,
+        class_weight="balanced_subsample",  # better recall on the HIGH minority class
         random_state=42,
         n_jobs=-1,
     )
