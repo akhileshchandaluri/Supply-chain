@@ -13,14 +13,16 @@ export const getDemandForecast = (horizon = 7) =>
 
 export const predictRisk = (features) => api.post("/risk/predict", features);
 
-export const detectAnomalies = () => api.get("/anomaly/detect");
-export const getSupplierScorecard = () => api.get("/supplier/scorecard");
-export const checkSupplier = (metrics) => api.post("/anomaly/check", metrics);
+// Isolation Forest / supplier-anomaly endpoints still exist on the backend
+// (the model runs silently to feed the RL agent's state) but are no longer
+// surfaced anywhere in the UI. Kept commented for easy restoration.
+// export const detectAnomalies = () => api.get("/anomaly/detect");
+// export const getSupplierScorecard = () => api.get("/supplier/scorecard");
+// export const checkSupplier = (metrics) => api.post("/anomaly/check", metrics);
 
 export const getAstarRoute = (start, goal) =>
   api.post("/route/astar", { start, goal });
-export const getDijkstraRoute = (start, goal) =>
-  api.post("/route/dijkstra", { start, goal });
+
 
 export const getRLAction = (params) => api.post("/rl/action", params);
 

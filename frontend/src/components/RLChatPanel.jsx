@@ -22,23 +22,27 @@ export default function RLChatPanel({ liveOrder }) {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [seededFor, setSeededFor] = useState(null);
   const scrollRef = useRef(null);
 
   const rl = liveOrder?.rl_action;
 
-  // Seed with the executive audit whenever a new run arrives.
-  useEffect(() => {
+  // Reset the conversation whenever a NEW pipeline run arrives, seeding it with
+  // the executive audit. Render-phase reset (React's recommended pattern for
+  // deriving state from a changed prop) — avoids setState-in-effect churn.
+  if (rl !== seededFor) {
+    setSeededFor(rl);
     if (!rl) {
       setMessages([]);
-      return;
+    } else {
+      const seed = liveOrder?.ai_explanation;
+      setMessages(
+        seed
+          ? [{ role: "assistant", content: seed }]
+          : [{ role: "assistant", content: "Decision data loaded. Ask me anything about why the agent chose this action." }]
+      );
     }
-    const seed = liveOrder?.ai_explanation;
-    setMessages(
-      seed
-        ? [{ role: "assistant", content: seed }]
-        : [{ role: "assistant", content: "Decision data loaded. Ask me anything about why the agent chose this action." }]
-    );
-  }, [rl, liveOrder?.ai_explanation]);
+  }
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });

@@ -21,9 +21,9 @@ const PAGE_COMPONENTS = {
 };
 
 const PAGE_META = {
-  dashboard: { kicker: "Command center", title: "Supply chain intelligence", subtitle: "Monitor demand, risk, anomalies, inventory decisions, history, and final routing." },
+  dashboard: { kicker: "Command center", title: "Supply chain intelligence", subtitle: "Monitor demand, delivery risk, inventory decisions, history, and final routing." },
   demand:    { kicker: "Forecasting", title: "Demand forecast", subtitle: "Inspect actual demand history and the next prediction window." },
-  anomaly:   { kicker: "Risk and supplier health", title: "Order risk & anomaly detection", subtitle: "Review the live order classification and supplier anomaly signals." },
+  anomaly:   { kicker: "Delivery risk", title: "Order delivery risk", subtitle: "Review the live order's Random Forest delivery risk classification." },
   rl:        { kicker: "Inventory agent", title: "RL decision console", subtitle: "Inspect the action selected from the Q-table." },
   history:   { kicker: "Audit trail", title: "Order history", subtitle: "Compare previous simulated orders and decisions." },
   routing:   { kicker: "Final pipeline step", title: "Route optimizer", subtitle: "See the chosen network path for the latest order." },

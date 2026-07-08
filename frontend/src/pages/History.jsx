@@ -67,7 +67,6 @@ export default function History({ history = [], onNavigate, setHistory }) {
                   <th>Dept.</th>
                   <th>Value</th>
                   <th>Risk</th>
-                  <th>Anomaly</th>
                   <th>RL Action</th>
                   <th>Route</th>
                 </tr>
@@ -92,7 +91,6 @@ export default function History({ history = [], onNavigate, setHistory }) {
                           <ShieldAlert size={11} /> {row.risk}
                         </span>
                       </td>
-                      <td><span className={`badge ${row.anomaly ? "badge-anomaly" : "badge-normal"}`}>{row.anomaly ? "Anomaly" : "Normal"}</span></td>
                       <td>
                         <span style={{
                           fontWeight: 700, fontSize: 12, color: actionColor,

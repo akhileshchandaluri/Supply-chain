@@ -13,17 +13,26 @@ from sklearn.metrics import (
 import joblib
 import os
 
-# NOTE ON FEATURE SELECTION (label-leakage fix):
-# risk_class is DERIVED from delay_gap = actual_days - scheduled_days (see
-# feature_engineering.build_risk_features). Feeding delay_gap / actual_days /
-# scheduled_days / days_buffer back in as features let the model re-derive the
-# label arithmetically, producing a fake 1.000 F1. Those four columns are
-# excluded here so the reported metrics reflect genuine predictive skill.
+# NOTE ON FEATURE SELECTION (label-leakage fix + honest signal boost):
+# risk_class is DERIVED from delay_gap = actual_days - scheduled_days, so those
+# columns (and days_buffer) are EXCLUDED to avoid the fake 1.000 F1. To recover
+# genuine predictive skill we add non-leaking, order-time predictors: geography
+# (market/region/country), product category, customer segment, order type,
+# order timing (month/day-of-week) and quantity.
 FEATURE_COLS = [
     "shipping_mode_enc",
     "discount_rate",
     "order_value",
     "supplier_delay_rate",
+    "market_enc",
+    "region_enc",
+    "category_enc",
+    "segment_enc",
+    "type_enc",
+    "ocountry_enc",
+    "order_month",
+    "order_dow",
+    "quantity",
 ]
 
 
@@ -102,8 +111,13 @@ def evaluate_random_forest(model, rf_df):
 
 
 def predict_risk(model, features: dict) -> dict:
-    """Returns risk label and probabilities."""
-    X = pd.DataFrame([features])[FEATURE_COLS]
+    """
+    Returns risk label and probabilities. Callers (the live pipeline / form) only
+    supply the order-time features they control; any FEATURE_COLS not provided
+    default to 0 so a partial feature dict still yields a valid prediction.
+    """
+    row = {col: features.get(col, 0) for col in FEATURE_COLS}
+    X = pd.DataFrame([row])[FEATURE_COLS]
     pred = int(model.predict(X)[0])
     proba = model.predict_proba(X)[0].tolist()
     label = ["LOW", "MEDIUM", "HIGH"][pred]

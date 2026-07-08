@@ -28,10 +28,9 @@ const PIPELINE = [
   { icon: Settings,    label: "Feature Eng.",   sub: "Lag and rolling sets", color: "linear-gradient(135deg,#0d9488,#2dd4bf)" },
   { icon: TrendingUp,  label: "XGBoost",        sub: "Demand forecast",  color: "linear-gradient(135deg,#06b6d4,#2563eb)" },
   { icon: BarChart3,   label: "Random Forest",  sub: "Risk classes",     color: "linear-gradient(135deg,#10b981,#0d9488)" },
-  { icon: ScanSearch,  label: "Isolation F.",    sub: "Supplier signals", color: "linear-gradient(135deg,#f59e0b,#f97316)" },
   { icon: Brain,       label: "Q-Learning",     sub: "Inventory action", color: "linear-gradient(135deg,#f43f5e,#8b5cf6)" },
   { icon: History,     label: "History",         sub: "Decision audit",   color: "linear-gradient(135deg,#64748b,#2563eb)" },
-  { icon: Network,     label: "Routing",         sub: "A* and Dijkstra",  color: "linear-gradient(135deg,#7c3aed,#2563eb)" },
+  { icon: Network,     label: "Routing",         sub: "A* shortest-path", color: "linear-gradient(135deg,#7c3aed,#2563eb)" },
 ];
 
 const HERO_KPIS = [
@@ -394,7 +393,7 @@ export default function Dashboard({ onNavigate, setLiveOrder }) {
             SmartChain <span>AI</span>
           </h1>
           <p className="hero-text">
-            A light, live operations cockpit for demand forecasting, delivery risk, supplier anomalies, adaptive routing, and inventory decisions.
+            A light, live operations cockpit for demand forecasting, delivery risk, adaptive routing, and inventory decisions.
           </p>
           <div className="hero-kpis">
             {HERO_KPIS.map((item) => (
@@ -706,7 +705,7 @@ export default function Dashboard({ onNavigate, setLiveOrder }) {
         <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginTop: 16 }}>
           {[
             { id: "demand",  label: "Demand Forecast", cls: "btn-cyan",    icon: TrendingUp },
-            { id: "anomaly", label: "Risk & Anomaly",  cls: "btn-primary", icon: AlertCircle },
+            { id: "anomaly", label: "Delivery Risk",   cls: "btn-primary", icon: AlertCircle },
             { id: "rl",      label: "RL Agent",        cls: "btn-danger",  icon: Package },
             { id: "history", label: "History",          cls: "btn-primary", icon: Activity },
             { id: "routing", label: "Route Optimizer",  cls: "btn-primary", icon: Network },

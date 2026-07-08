@@ -175,12 +175,12 @@ function WarningBanner({ action }) {
             fontFamily: "var(--font-display)", fontSize: 15, fontWeight: 800,
             color: isEmergency ? "#E11D48" : "#7C3AED", marginBottom: 3,
           }}>
-            {isEmergency ? "CRITICAL: Emergency Reorder Triggered" : "WARNING: Supplier Anomaly — Switching Vendor"}
+            {isEmergency ? "CRITICAL: Emergency Reorder Triggered" : "WARNING: Elevated Supplier Risk — Switching Vendor"}
           </p>
           <p style={{ fontSize: 12, color: "var(--text-muted)", lineHeight: 1.5 }}>
             {isEmergency
               ? "Q-agent detected imminent stockout. A* emergency route auto-activated (cost penalty accepted)."
-              : "Isolation Forest flagged supplier anomaly. Q-agent overrides standard order."}
+              : "Q-agent detected elevated supplier risk and switched to an alternate vendor."}
           </p>
         </div>
 

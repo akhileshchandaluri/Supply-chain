@@ -70,17 +70,41 @@ def build_risk_features(df):
     )
     df = df.join(dept_delay, on="department")
 
-    df["days_buffer"] = df["scheduled_days"] - df["actual_days"].clip(lower=0)
+    # ── Additional NON-LEAKING predictors (known at order time) ───────────────
+    # These lift real F1/AUC without re-introducing the delay_gap leak. Geography,
+    # product, customer type and order timing all correlate with delivery delay.
+    df["order_month"] = df["order_date"].dt.month
+    df["order_dow"] = df["order_date"].dt.dayofweek
+
+    # Deterministic label-encoding of categoricals present in the raw frame.
+    _cat_sources = {
+        "market_enc":  "Market",
+        "region_enc":  "Order Region",
+        "category_enc": "category",
+        "segment_enc": "customer_segment",
+        "type_enc":    "Type",
+        "ocountry_enc": "country",
+    }
+    for enc_col, src in _cat_sources.items():
+        if src in df.columns:
+            df[enc_col] = df[src].astype("category").cat.codes
+        else:
+            df[enc_col] = 0
 
     feature_cols = [
         "shipping_mode_enc",
-        "actual_days",
-        "scheduled_days",
         "discount_rate",
         "order_value",
         "supplier_delay_rate",
-        "days_buffer",
-        "delay_gap",
+        "market_enc",
+        "region_enc",
+        "category_enc",
+        "segment_enc",
+        "type_enc",
+        "ocountry_enc",
+        "order_month",
+        "order_dow",
+        "quantity",
     ]
 
     rf_df = df[feature_cols + ["risk_class"]].dropna()

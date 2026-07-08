@@ -9,7 +9,7 @@ import { getStatus } from "../api/client";
 const NAV = [
   { id: "dashboard", label: "Overview",          icon: LayoutDashboard, badge: null     },
   { id: "demand",    label: "Demand Forecast",   icon: TrendingUp,      badge: "XGBOOST"},
-  { id: "anomaly",   label: "Risk & Anomaly",    icon: AlertTriangle,   badge: "RF+ISO" },
+  { id: "anomaly",   label: "Delivery Risk",     icon: AlertTriangle,   badge: "RF"     },
   { id: "rl",        label: "RL Agent",          icon: BrainCircuit,    badge: "QL"     },
   { id: "history",   label: "History",           icon: History,         badge: "LOG"    },
   { id: "routing",   label: "Route Optimizer",   icon: Network,         badge: "FINAL"  },

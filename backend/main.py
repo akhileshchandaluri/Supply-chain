@@ -38,7 +38,7 @@ from isolation_forest import (
 )
 from graph_construction import get_graph_data, NODES
 from astar_routing import astar
-from dijkstra_routing import dijkstra
+
 from rl_agent import train_agent, get_action
 from xai_explainer import chat_about_decision
 from integration import run_pipeline
@@ -499,11 +499,7 @@ def astar_route(req: RouteRequest):
     return astar(req.start, req.goal)
 
 
-@app.post("/api/route/dijkstra")
-def dijkstra_route(req: RouteRequest):
-    if req.start not in NODES or req.goal not in NODES:
-        raise HTTPException(status_code=400, detail="Invalid node IDs.")
-    return dijkstra(req.start, req.goal)
+
 
 
 
