@@ -54,15 +54,6 @@ def _format_pipeline_prompt(pipeline_data: dict) -> str:
     rl_action = pipeline_data.get("rl_action", {})
     action = rl_action.get("action", "N/A") if isinstance(rl_action, dict) else rl_action
 
-    optimization = pipeline_data.get("optimization", {}) or {}
-    opt_status = optimization.get("status", "N/A")
-    opt_cost = optimization.get("total_optimized_cost", "N/A")
-    allocations = optimization.get("allocations", []) or []
-    alloc_lines = ", ".join(
-        f"{a.get('units')} units {a.get('warehouse')}->{a.get('region')}"
-        for a in allocations
-    ) or "none"
-
     route = pipeline_data.get("route", {}) or {}
     route_type = route.get("type", "N/A")
     is_emergency = pipeline_data.get("is_emergency", False)
@@ -74,10 +65,7 @@ def _format_pipeline_prompt(pipeline_data: dict) -> str:
         f"- Supplier irregularity: {anomaly_state}\n"
         f"- Recommended inventory action: {action}\n"
         f"- Fulfilment mode: {route_type} "
-        f"({'emergency' if is_emergency else 'standard'})\n"
-        f"- Warehouse allocation plan: {alloc_lines}\n"
-        f"- Allocation solver status: {opt_status}, "
-        f"total shipping cost: {opt_cost}\n\n"
+        f"({'emergency' if is_emergency else 'standard'})\n\n"
         "Write the executive audit summary now."
     )
 

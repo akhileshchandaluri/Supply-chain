@@ -19,7 +19,6 @@ from rf_risk import predict_risk
 from isolation_forest import detect_anomaly
 from rl_agent import get_action
 from astar_routing import astar
-from optimization_layer import optimize_warehouse_allocation
 from xai_explainer import generate_pipeline_explanation
 
 
@@ -108,21 +107,8 @@ def run_pipeline(
     )
 
     # ── Step 4.5: Optimization Layer — physical warehouse allocation ──────────
-    # Bridge the RL macro-decision to a min-cost inventory allocation (GLOP LP).
-    # Wrapped so a solver/import failure degrades gracefully without changing the
-    # response shape ({status, total_optimized_cost, allocations}).
-    try:
-        optimization = optimize_warehouse_allocation(
-            demand_forecast=forecast,
-            action_context=rl_result["action"],
-        )
-    except Exception as e:
-        print(f"[Pipeline] Optimization step failed: {e}")
-        optimization = {
-            "status": "ERROR",
-            "total_optimized_cost": 0.0,
-            "allocations": [],
-        }
+    # Removed GLOP optimization to simplify pipeline architecture.
+    optimization = None
 
     # ── Step 5: Routing — always A* (heuristic shortest-path) ────────────────
     start = int(current_state.get("start_node", 0))
@@ -188,8 +174,6 @@ def run_pipeline(
         # RL
         "rl_action": rl_result,
 
-        # Optimization (Layer 4.5) — min-cost warehouse allocation
-        "optimization": optimization,
 
         # Routing
         "route":        route,

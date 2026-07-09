@@ -12,36 +12,28 @@ if sys.stdout.encoding != 'utf-8':
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
 
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, HTTPException, BackgroundTasks
-from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from fastapi import FastAPI, HTTPException, BackgroundTasks  # pyrefly: ignore [missing-import]
+from fastapi.middleware.cors import CORSMiddleware  # pyrefly: ignore [missing-import]
+from pydantic import BaseModel  # pyrefly: ignore [missing-import]
 from typing import Optional, List
-import numpy as np
-import joblib
-import pandas as pd
+import numpy as np  # pyrefly: ignore [missing-import]
+import joblib  # pyrefly: ignore [missing-import]
+import pandas as pd  # pyrefly: ignore [missing-import]
 
 # ─── Local imports ────────────────────────────────────────────────────────────
-from data_preprocessing import load_data
-from feature_engineering import (
-    build_demand_features,
-    build_risk_features,
-    build_supplier_features,
-)
-from xgboost_demand import train_xgboost, predict_demand
-from xgboost_demand import evaluate_xgboost, evaluate_xgboost_for_product
-from rf_risk import train_random_forest, predict_risk, evaluate_random_forest
-from rf_risk import FEATURE_COLS as RF_FEATURE_COLS
-from isolation_forest import (
-    train_isolation_forest,
-    detect_anomaly,
-    get_all_supplier_scores,
-)
-from graph_construction import get_graph_data, NODES
-from astar_routing import astar
-
-from rl_agent import train_agent, get_action
-from xai_explainer import chat_about_decision
-from integration import run_pipeline
+from data_preprocessing import load_data  # pyrefly: ignore [missing-import]
+from feature_engineering import build_demand_features, build_risk_features, build_supplier_features  # pyrefly: ignore [missing-import]
+from xgboost_demand import train_xgboost, predict_demand, evaluate_xgboost, evaluate_xgboost_for_product  # pyrefly: ignore [missing-import]
+from rf_risk import train_random_forest, evaluate_random_forest, predict_risk  # pyrefly: ignore [missing-import]
+from rf_risk import FEATURE_COLS as RF_FEATURE_COLS  # pyrefly: ignore [missing-import]
+from isolation_forest import train_isolation_forest  # pyrefly: ignore [missing-import]
+from graph_construction import get_graph_data, NODES  # pyrefly: ignore [missing-import]
+from rl_agent import train_agent  # pyrefly: ignore [missing-import]
+from integration import run_pipeline  # pyrefly: ignore [missing-import]
+from rl_agent import get_action  # pyrefly: ignore [missing-import]
+from xai_explainer import chat_about_decision  # pyrefly: ignore [missing-import]
+from astar_routing import astar  # pyrefly: ignore [missing-import]
+from isolation_forest import detect_anomaly, get_all_supplier_scores  # pyrefly: ignore [missing-import]
 
 # ─── Global State (defined before lifespan so it can reference these) ─────────
 BASE_DIR = os.path.dirname(__file__)

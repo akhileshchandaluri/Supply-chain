@@ -1,0 +1,6 @@
+{
+    "python.analysis.extraPaths": [
+        "d:/btech/projects/AI-el - Copy/backend/src"
+    ],
+    "python.defaultInterpreterPath": "d:/btech/projects/AI-el - Copy/backend/venv/Scripts/python.exe"
+}
