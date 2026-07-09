@@ -60,6 +60,12 @@ export default function RLChatPanel({ liveOrder }) {
     risk_score: liveOrder?.risk_score,
     anomaly: liveOrder?.anomaly,
     demand_7d_avg: liveOrder?.demand_7d_avg,
+    current_inventory: liveOrder?.order_details?.inventory,
+    projected_inventory: 
+      Number(liveOrder?.order_details?.inventory || 0) 
+      - Number(liveOrder?.demand_7d_avg || 0) 
+      + (rl?.action === 'REORDER_SMALL' ? 150 : rl?.action === 'REORDER_MEDIUM' ? 400 : rl?.action === 'REORDER_LARGE' ? 800 : rl?.action === 'EMERGENCY_REORDER' ? 600 : 0),
+    inventory_math_formula: "Projected = Current Inventory - 7-Day Demand (Avg) + Reorder Quantity",
     is_emergency: liveOrder?.is_emergency,
     optimization: liveOrder?.optimization
       ? {

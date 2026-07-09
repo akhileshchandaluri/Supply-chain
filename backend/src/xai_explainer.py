@@ -182,26 +182,3 @@ def chat_about_decision(question: str, context: dict, history=None) -> str:
 
     return _call_groq(messages, temperature=0.4, max_tokens=400, timeout=15)
 
-
-if __name__ == "__main__":
-    # Offline smoke test — exercises formatting + fallback without a live key.
-    sample = {
-        "demand_7d_avg": 132.5,
-        "risk_level": "HIGH",
-        "anomaly": {"is_anomaly": True, "score": -0.12},
-        "rl_action": {"action": "SWITCH_SUPPLIER"},
-        "optimization": {
-            "status": "OPTIMAL",
-            "total_optimized_cost": 2889.25,
-            "allocations": [
-                {"warehouse": "secondary", "region": "north", "units": 364.0},
-                {"warehouse": "tertiary", "region": "east", "units": 227.5},
-            ],
-        },
-        "route": {"type": "EMERGENCY (A*)"},
-        "is_emergency": True,
-    }
-    print("--- formatted prompt ---")
-    print(_format_pipeline_prompt(sample))
-    print("\n--- explanation ---")
-    print(generate_pipeline_explanation(sample))

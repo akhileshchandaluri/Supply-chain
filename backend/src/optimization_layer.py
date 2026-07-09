@@ -171,17 +171,3 @@ def optimize_warehouse_allocation(
         "allocations": allocations,
     }
 
-
-if __name__ == "__main__":
-    # Quick smoke test: normal operation vs. supplier switch.
-    normal = optimize_warehouse_allocation([120, 130, 110, 140, 125, 135, 150])
-    print("NORMAL:", normal["status"], normal["total_optimized_cost"])
-    for a in normal["allocations"]:
-        print("  ", a)
-
-    switched = optimize_warehouse_allocation(
-        [120, 130, 110, 140, 125, 135, 150], action_context="SWITCH_SUPPLIER"
-    )
-    print("SWITCH_SUPPLIER:", switched["status"], switched["total_optimized_cost"])
-    for a in switched["allocations"]:
-        print("  ", a)

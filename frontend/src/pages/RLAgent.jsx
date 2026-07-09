@@ -130,11 +130,11 @@ function JustificationCard({ rl }) {
 // ─── Action configuration (mirrors rl_agent.py ACTIONS dict) ──────────────────
 const ACTION_CFG = {
   HOLD:              { emoji:"⏸️", label:"Hold",             color:"#6366F1", bg:"rgba(99,102,241,0.08)", border:"rgba(99,102,241,0.3)", glow:"rgba(99,102,241,0.15)", qty:"+0",    desc:"Inventory is in the optimal zone. No reorder needed." },
-  REORDER_SMALL:     { emoji:"📦", label:"Reorder Small",    color:"#10B981", bg:"rgba(16,185,129,0.08)", border:"rgba(16,185,129,0.3)", glow:"rgba(16,185,129,0.15)", qty:"+50",   desc:"Minor shortfall ahead. Order 50 units to top up." },
-  REORDER_MEDIUM:    { emoji:"🚛", label:"Reorder Medium",   color:"#F59E0B", bg:"rgba(245,158,11,0.08)", border:"rgba(245,158,11,0.3)", glow:"rgba(245,158,11,0.15)", qty:"+150",  desc:"Moderate restocking needed — 150 units inbound." },
-  REORDER_LARGE:     { emoji:"🏭", label:"Reorder Large",    color:"#FB923C", bg:"rgba(251,146,60,0.08)", border:"rgba(251,146,60,0.3)", glow:"rgba(251,146,60,0.15)", qty:"+300",  desc:"Significant replenishment: 300 units ordered." },
-  EMERGENCY_REORDER: { emoji:"🚨", label:"Emergency Reorder",color:"#F43F5E", bg:"rgba(244,63,94,0.08)",  border:"rgba(244,63,94,0.3)",  glow:"rgba(244,63,94,0.15)",  qty:"+200",  desc:"Critical shortage! Auto-activated emergency route." },
-  SWITCH_SUPPLIER:   { emoji:"⚡", label:"Switch Supplier",  color:"#A78BFA", bg:"rgba(167,139,250,0.08)",border:"rgba(167,139,250,0.3)", glow:"rgba(167,139,250,0.15)", qty:"0",    desc:"Supplier anomaly detected — switching to alternate vendor." },
+  REORDER_SMALL:     { emoji:"📦", label:"Reorder Small",    color:"#10B981", bg:"rgba(16,185,129,0.08)", border:"rgba(16,185,129,0.3)", glow:"rgba(16,185,129,0.15)", qty:"+150",  desc:"Minor shortfall ahead. Order 150 units to top up." },
+  REORDER_MEDIUM:    { emoji:"🚛", label:"Reorder Medium",   color:"#F59E0B", bg:"rgba(245,158,11,0.08)", border:"rgba(245,158,11,0.3)", glow:"rgba(245,158,11,0.15)", qty:"+400",  desc:"Moderate restocking needed — 400 units inbound." },
+  REORDER_LARGE:     { emoji:"🏭", label:"Reorder Large",    color:"#FB923C", bg:"rgba(251,146,60,0.08)", border:"rgba(251,146,60,0.3)", glow:"rgba(251,146,60,0.15)", qty:"+800",  desc:"Significant replenishment: 800 units ordered." },
+  EMERGENCY_REORDER: { emoji:"🚨", label:"Emergency Reorder",color:"#F43F5E", bg:"rgba(244,63,94,0.08)",  border:"rgba(244,63,94,0.3)",  glow:"rgba(244,63,94,0.15)",  qty:"+600",  desc:"Critical shortage! Auto-activated emergency route." },
+  SWITCH_SUPPLIER:   { emoji:"⚡", label:"Switch Supplier",  color:"#A78BFA", bg:"rgba(167,139,250,0.08)",border:"rgba(167,139,250,0.3)", glow:"rgba(167,139,250,0.15)", qty:"+0",    desc:"Supplier anomaly detected — switching to alternate vendor." },
 };
 
 function WarningBanner({ action }) {
@@ -296,7 +296,7 @@ function QCard({ actionName, qval, isChosen, rank, delay }) {
   );
 }
 
-function HeroCard({ result }) {
+function HeroCard({ result, liveOrder }) {
   if (!result) {
     return (
       <motion.div
@@ -378,8 +378,23 @@ function HeroCard({ result }) {
           marginTop:24, padding:"12px 16px", borderRadius:10,
           background:"#FFFFFF", border:"1px solid var(--border)",
           fontFamily:"var(--font-mono)", fontSize:12, color:"var(--text-muted)",
-          textAlign:"left", display: "inline-block"
+          textAlign:"left", display: "inline-block", width: "100%", maxWidth: "400px"
         }}>
+          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, borderBottom: "1px dashed var(--border)", paddingBottom: 8 }}>
+            <span style={{ color: "var(--text-secondary)" }}>Current Inventory:</span>
+            <span style={{ fontWeight: "bold" }}>{Number(liveOrder?.order_details?.inventory || 0).toFixed(0)} units</span>
+          </div>
+          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, borderBottom: "1px dashed var(--border)", paddingBottom: 8 }}>
+            <span style={{ color: "var(--text-secondary)" }}>7-Day Demand (Avg):</span>
+            <span style={{ fontWeight: "bold" }}>{Number(liveOrder?.demand_7d_avg || 0).toFixed(0)} units</span>
+          </div>
+          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12 }}>
+            <span style={{ color: "var(--text-secondary)" }}>Projected (After Action):</span>
+            <span style={{ fontWeight: "bold", color: cfg.color }}>
+              {(Number(liveOrder?.order_details?.inventory || 0) - Number(liveOrder?.demand_7d_avg || 0) + Number(cfg.qty || 0)).toFixed(0)} units
+            </span>
+          </div>
+
           <span style={{ color:"var(--text-dim)", marginRight:8 }}>Q-table lookup:</span>
           <span style={{ color:cfg.color }}>argmax Q[state]</span>
           <span style={{ color:"var(--text-secondary)" }}> = {result.action_id} → {result.action}</span>
@@ -413,7 +428,7 @@ export default function RLAgent({ liveOrder }) {
       <div style={{ maxWidth: 860, margin: "0 auto", display:"flex", flexDirection:"column", gap:24 }}>
         <div className="card">
           <p className="card-label" style={{ marginBottom:10 }}>Agent Decision</p>
-          <HeroCard result={result} />
+          <HeroCard result={result} liveOrder={liveOrder} />
         </div>
 
         <AnimatePresence>

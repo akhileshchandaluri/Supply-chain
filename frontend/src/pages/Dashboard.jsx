@@ -315,11 +315,12 @@ export default function Dashboard({ onNavigate, setLiveOrder }) {
     startStepperAnimation();
     try {
       const res = await runPipeline(payload);
-      // /api/pipeline/run has no order_details; synthesize a minimal one from the
-      // Command Center inputs so the topbar pill + downstream tabs stay consistent.
+      // The backend now provides a base order_details (including inventory).
+      // We merge the Command Center inputs over it so the topbar pill + downstream tabs stay consistent.
       const enriched = {
         ...res.data,
         order_details: {
+          ...(res.data.order_details || {}),
           city: meta.hub,
           value: meta.orderValue ?? meta.quantity * 100,
           quantity: meta.quantity,

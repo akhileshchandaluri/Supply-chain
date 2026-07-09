@@ -36,36 +36,14 @@ def run_pipeline(
     current_state: dict,
 ) -> dict:
     """
-    Execute the complete SmartChain AI pipeline and return a unified result.
-
-    Parameters
-    ----------
-    xgb_model       : Trained XGBRegressor (loaded at startup)
-    rf_model        : Trained RandomForestClassifier (loaded at startup)
-    iso_model       : Trained IsolationForest (loaded at startup)
-    q_table         : NumPy Q-table array (loaded at startup)
-    daily_df        : Pre-built daily demand DataFrame (built at startup)
-    current_state   : Dict with keys:
-        inventory           (float) Current inventory level
-        days_to_delivery    (float) Days until next scheduled delivery
-        start_node          (int)   Source node ID in the logistics graph
-        goal_node           (int)   Destination node ID in the logistics graph
-        risk_features       (dict)  8 RF feature values:
-                                      shipping_mode_enc, actual_days,
-                                      scheduled_days, discount_rate,
-                                      order_value, supplier_delay_rate,
-                                      days_buffer, delay_gap
-        supplier_metrics    (dict)  4 Isolation Forest feature values:
-                                      avg_delivery_time, price_deviation,
-                                      fulfillment_rate, complaint_freq
-
-    Returns
-    -------
-    Unified dict with keys:
-        demand_forecast_7d, demand_7d_avg,
-        risk_level, risk_score, risk_probabilities,
-        anomaly, rl_action, route, is_emergency,
-        pipeline_summary
+    Executes the complete SmartChain AI Orchestration Pipeline.
+    
+    Workflow:
+    1. XGBoost Forecasts global demand for the next 7 days.
+    2. Random Forest Classifies the real-time logistical delivery risk (Low/Med/High).
+    3. Isolation Forest Detects supplier quality-control anomalies.
+    4. Q-Learning Agent ingests the Forecast, Risk, and Anomaly states to determine the optimal strategic action.
+    5. A* Algorithm calculates the physical logistics route based on the Agent's decision.
     """
 
     # ── Step 1: XGBoost — 7-day demand forecast ───────────────────────────────
@@ -217,7 +195,6 @@ def run_pipeline(
         "route":        route,
         "is_emergency": is_emergency,
 
-        # Human-readable pipeline summary
         "pipeline_summary": {
             "step_1_demand":  f"XGBoost 7-day avg: {demand_7d:.1f} units",
             "step_2_risk":    f"Random Forest: {risk_label} (score {risk_score})",
@@ -225,6 +202,9 @@ def run_pipeline(
             "step_4_rl":      f"Q-Learning: {rl_result['action']}",
             "step_5_route":   f"{route['type']}: {' → '.join(route.get('path_names', []))}",
         },
+
+        # System State
+        "current_state": current_state,
     }
 
     # ── Layer 6: XAI — plain-language executive audit of the full decision ─────

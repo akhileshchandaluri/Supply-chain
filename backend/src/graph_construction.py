@@ -80,7 +80,7 @@ def build_adjacency(edges=None, mode: str = "time") -> dict:
     """
     Build adjacency list from EDGES.
     mode='time'  → weight = distance × traffic_factor  (A* emergency)
-    mode='cost'  → weight = fuel_cost + time_cost      (Dijkstra standard)
+    mode='cost'  → weight = fuel_cost + time_cost      (Standard cost routing)
     """
     if edges is None:
         edges = EDGES

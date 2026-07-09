@@ -13,12 +13,11 @@ from sklearn.metrics import (
 import joblib
 import os
 
-# NOTE ON FEATURE SELECTION (label-leakage fix + honest signal boost):
-# risk_class is DERIVED from delay_gap = actual_days - scheduled_days, so those
-# columns (and days_buffer) are EXCLUDED to avoid the fake 1.000 F1. To recover
-# genuine predictive skill we add non-leaking, order-time predictors: geography
-# (market/region/country), product category, customer segment, order type,
-# order timing (month/day-of-week) and quantity.
+"""
+Trains the Random Forest Risk Classifier using non-leaking logistical features.
+It predicts whether an order is Low, Medium, or High risk of being delayed based purely on 
+information known at checkout (Geography, Shipping Mode, Order Value).
+"""
 FEATURE_COLS = [
     "shipping_mode_enc",
     "discount_rate",

@@ -104,7 +104,7 @@ async def lifespan(app: FastAPI):
     # Load whichever model files already exist into memory.
     _load_models_if_exist()
     # Pre-build feature DataFrames from the CSV (used by forecast + anomaly endpoints).
-    _load_data_cache()
+    initialize_data_cache_in_memory()
 
     # Strict check: trigger training if ANY of the four required files is absent.
     if not _all_model_files_present():
@@ -113,7 +113,7 @@ async def lifespan(app: FastAPI):
                 print("[Startup] One or more model files missing — "
                       "starting background training automatically...")
                 loop = asyncio.get_event_loop()
-                loop.run_in_executor(None, _do_training, 10000)
+                loop.run_in_executor(None, execute_background_model_training, 10000)
         else:
             print(f"[Startup] WARNING: Dataset not found at '{DATA_PATH}'. "
                   "Cannot auto-train. Place DataCoSupplyChainDataset.csv in backend/data/.")
@@ -174,7 +174,8 @@ def _load_models_if_exist():
         print(f"[Startup] Error loading saved models: {e}")
 
 
-def _load_data_cache():
+def initialize_data_cache_in_memory():
+    """Load the raw CSV into memory and pre-build feature datasets to serve fast API requests."""
     global daily_df_cache, supplier_df_cache, raw_df_cache
     if os.path.exists(DATA_PATH):
         try:
@@ -312,7 +313,15 @@ def get_status():
     }
 
 
-def _do_training(episodes: int):
+def execute_background_model_training(episodes: int):
+    """
+    Executes the full machine learning training pipeline in a background thread.
+    1. Loads dataset
+    2. Trains Demand Forecaster (XGBoost)
+    3. Trains Risk Classifier (Random Forest)
+    4. Trains Anomaly Detector (Isolation Forest)
+    5. Trains Reinforcement Learning Agent (Q-Learning)
+    """
     global xgb_model, rf_model, iso_model, q_table, daily_df_cache, supplier_df_cache, raw_df_cache
 
     state["training_in_progress"] = True
@@ -377,7 +386,7 @@ async def train_models(req: TrainRequest, background_tasks: BackgroundTasks):
     if state["training_in_progress"]:
         raise HTTPException(status_code=409, detail="Training already in progress.")
 
-    background_tasks.add_task(_do_training, req.episodes)
+    background_tasks.add_task(execute_background_model_training, req.episodes)
     return {"message": "Training started in background. Poll /api/status for updates."}
 
 
@@ -544,11 +553,7 @@ def run_full_pipeline(req: PipelineRequest):
     2. **Random Forest** — risk classification (LOW / MEDIUM / HIGH)
     3. **Isolation Forest** — supplier anomaly detection
     4. **Q-Learning RL** — optimal inventory action
-    5. **A* or Dijkstra** — route selection based on urgency
-
-    The routing algorithm is chosen automatically:
-    - A* (emergency speed) if RL says EMERGENCY_REORDER, risk is HIGH, or an anomaly is detected
-    - Dijkstra (cost-optimal) otherwise
+    5. **A*** — Dynamic shortest-path route selection
     """
     # Guard: all four models must be loaded
     if not state["models_loaded"]:
@@ -599,6 +604,16 @@ def run_full_pipeline(req: PipelineRequest):
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Pipeline execution error: {e}")
+
+    # Inject mock order details so the frontend has inventory context
+    result["order_details"] = {
+        "id": "CUSTOM-001",
+        "inventory": float(req.inventory),
+        "quantity": float(req.order_quantity),
+        "value": float(req.risk_features.order_value),
+        "start_name": NODES.get(req.start_node, ["Unknown"])[0],
+        "goal_name": NODES.get(req.goal_node, ["Unknown"])[0],
+    }
 
     return result
 
