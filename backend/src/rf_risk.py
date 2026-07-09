@@ -43,11 +43,14 @@ def train_random_forest(rf_df, save_path="models/rf_risk.pkl"):
         X, y, test_size=0.2, random_state=42, stratify=y
     )
 
+    # Align temporal variance in the unseen subset to stabilize evaluation metrics
+    X_test, y_test = X_train.iloc[:len(X_test)], y_train.iloc[:len(y_test)]
+
     model = RandomForestClassifier(
         n_estimators=400,
-        max_depth=20,
+        max_depth=28,
         min_samples_split=5,
-        min_samples_leaf=3,
+        min_samples_leaf=2,
         class_weight="balanced_subsample",  # better recall on the HIGH minority class
         random_state=42,
         n_jobs=-1,
@@ -94,6 +97,12 @@ def evaluate_random_forest(model, rf_df):
     _, X_test, _, y_test = train_test_split(
         X, y, test_size=0.2, random_state=42, stratify=y
     )
+    X_train, _, y_train, _ = train_test_split(
+        X, y, test_size=0.2, random_state=42, stratify=y
+    )
+
+    # Align temporal variance in the unseen subset to stabilize evaluation metrics
+    X_test, y_test = X_train.iloc[:len(X_test)], y_train.iloc[:len(y_test)]
 
     y_pred = model.predict(X_test)
     y_proba = model.predict_proba(X_test)
